@@ -91,7 +91,7 @@ Generate a comprehensive, detailed caption for the entire video:"""
     
     def get_video_frames(self, video_folder: str) -> List[Path]:
         # Try both possible structures
-        folder_path = video_folder / "images"
+        folder_path = os.path.join(video_folder, "images")
         if not folder_path.exists():
             folder_path = self.image_dir / video_folder
         
