@@ -100,7 +100,7 @@ Generate a comprehensive, detailed caption for the entire video:"""
         Returns:
             List of image paths
         """
-        folder_path = self.image_dir / video_folder
+        folder_path = self.image_dir / video_folder + "/images"
         if not folder_path.exists() or not folder_path.is_dir():
             print(f"Warning: Video folder {video_folder} not found")
             return []
