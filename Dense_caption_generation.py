@@ -12,7 +12,7 @@ class DenseCaptionGenerator:
         
         Args:
             api_key: API key for DashScope/Model Studio
-            image_dir: Directory containing video frame images
+            image_dir: Directory containing video frame folders
             json_path: Path to the JSON file with video metadata
         """
         self.client = OpenAI(
@@ -68,7 +68,7 @@ Preventive Measures: {entry.get('measures', 'N/A')}
     
     def generate_dense_caption_prompt(self, context: str) -> str:
         """Create a comprehensive prompt for dense caption generation"""
-        prompt = f"""Based on the image and the following context information, generate a dense, detailed caption that describes:
+        prompt = f"""Based on the following frames and context information, generate a dense, detailed caption that describes:
 
 1. The visual scene in detail (vehicles, road conditions, environment)
 2. The sequence of events leading to the incident
@@ -86,79 +86,53 @@ Please provide a dense caption that:
 - Includes spatial relationships between vehicles and road elements
 - Mentions any potential hazards or risk factors
 
-Generate a comprehensive, detailed caption:"""
+Generate a comprehensive, detailed caption for the entire video:"""
         return prompt
     
-    def get_frame_images(self, video_name: str, entry: Dict[str, Any]) -> List[Path]:
+    def get_video_frames(self, video_folder: str) -> List[Path]:
         """
-        Get relevant frame images for the video
+        Get a list of frame images from a video folder
         
         Args:
-            video_name: Base name of the video
-            entry: JSON entry with frame information
+            video_folder: Name of the folder containing frames
+            max_frames: Maximum frames to sample for captioning
         
         Returns:
-            List of image paths to process
+            List of image paths
         """
-        frames_to_load = []
-        base_name = video_name.replace('.jpg', '').replace('.png', '')
+        folder_path = self.image_dir / video_folder
+        if not folder_path.exists() or not folder_path.is_dir():
+            print(f"Warning: Video folder {video_folder} not found")
+            return []
         
-        # Key frames to analyze
-        key_frames = [
-            entry.get('abnormal start frame'),
-            entry.get('accident frame'),
-            entry.get('abnormal end frame')
-        ]
+        # List all jpg/png frames
+        frames = sorted([f for f in folder_path.iterdir() if f.suffix.lower() in [".jpg", ".jpeg", ".png"]])
         
-        # Add the main frame
-        main_frame = self.image_dir / video_name
-        if main_frame.exists():
-            frames_to_load.append(main_frame)
+        if not frames:
+            print(f"Warning: No frames found in {video_folder}")
+            return []
         
-        # Try to load key frames if they exist
-        for frame_num in key_frames:
-            if frame_num:
-                # Try different naming conventions
-                possible_names = [
-                    f"{base_name}_{frame_num:03d}.jpg",
-                    f"{base_name}_{frame_num}.jpg",
-                    f"{base_name}_frame_{frame_num}.jpg",
-                    f"frame_{frame_num}.jpg"
-                ]
-                
-                for name in possible_names:
-                    frame_path = self.image_dir / name
-                    if frame_path.exists() and frame_path not in frames_to_load:
-                        frames_to_load.append(frame_path)
-                        break
         
-        return frames_to_load[:3]  # Limit to 3 images max for API constraints
+        return frames
     
     def generate_caption_for_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate dense caption for a single JSON entry
-        
-        Args:
-            entry: Single entry from JSON file
-        
-        Returns:
-            Dictionary with original entry and generated caption
+        Generate dense caption for an entire video by analyzing multiple frames
         """
-        video_name = entry.get("Video", "")
+        video_folder = entry.get("Video", "")
         context = self.parse_metadata(entry)
         prompt = self.generate_dense_caption_prompt(context)
         
-        # Get relevant images
-        image_paths = self.get_frame_images(video_name, entry)
+        # Load multiple frames
+        image_paths = self.get_video_frames(video_folder, max_frames=12)
         
         if not image_paths:
-            print(f"Warning: No images found for {video_name}")
-            return {**entry, "dense_caption": "No image available for caption generation"}
+            print(f"Warning: No frames found for {video_folder}")
+            return {**entry, "dense_caption": "No frames available for caption generation"}
         
-        # Prepare message content
         message_content = []
         
-        # Add images
+        # Add sampled frames
         for img_path in image_paths:
             try:
                 image_url = self.create_local_image_url(img_path)
@@ -166,40 +140,37 @@ Generate a comprehensive, detailed caption:"""
                     "type": "image_url",
                     "image_url": {"url": image_url}
                 })
-                print(f"  Added image: {img_path.name}")
+                print(f"  Added frame: {img_path.name}")
             except Exception as e:
-                print(f"  Error loading image {img_path}: {e}")
+                print(f"  Error loading frame {img_path}: {e}")
         
         # Add text prompt
         message_content.append({"type": "text", "text": prompt})
         
         try:
-            # Call API
+            # API call
             completion = self.client.chat.completions.create(
                 model="qwen-vl-plus",
-                messages=[{
-                    "role": "user",
-                    "content": message_content
-                }],
-                max_tokens=500,
+                messages=[{"role": "user", "content": message_content}],
+                max_tokens=700,
                 temperature=0.7
             )
             
             caption = completion.choices[0].message.content
-            print(f"  Generated caption successfully")
+            print(f"  Generated caption for {video_folder}")
             
             return {
                 **entry,
                 "dense_caption": caption,
-                "images_used": [str(p.name) for p in image_paths]
+                "frames_used": [str(p.name) for p in image_paths]
             }
-            
+        
         except Exception as e:
             print(f"  Error generating caption: {e}")
             return {
                 **entry,
                 "dense_caption": f"Error generating caption: {str(e)}",
-                "images_used": [str(p.name) for p in image_paths]
+                "frames_used": [str(p.name) for p in image_paths]
             }
     
     def process_json_file(self, output_path: str = "output_with_captions.json"):
@@ -230,7 +201,7 @@ Generate a comprehensive, detailed caption:"""
             result = self.generate_caption_for_entry(entry)
             results.append(result)
             
-            # Optional: Save intermediate results
+            # Save intermediate results every 5 entries
             if idx % 5 == 0:
                 with open(f"{output_path}.tmp", 'w') as f:
                     json.dump(results, f, indent=2, ensure_ascii=False)
@@ -244,43 +215,6 @@ Generate a comprehensive, detailed caption:"""
         print(f"Processing complete! Results saved to {output_path}")
         
         return results
-    
-    def generate_single_caption(self, json_entry: Dict[str, Any], image_path: str = None) -> str:
-        """
-        Generate caption for a single entry (useful for testing)
-        
-        Args:
-            json_entry: Single JSON entry
-            image_path: Optional specific image path to use
-        
-        Returns:
-            Generated dense caption
-        """
-        if image_path:
-            # Use specific image
-            context = self.parse_metadata(json_entry)
-            prompt = self.generate_dense_caption_prompt(context)
-            
-            image_url = self.create_local_image_url(Path(image_path))
-            
-            completion = self.client.chat.completions.create(
-                model="qwen-vl-plus",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": image_url}},
-                        {"type": "text", "text": prompt}
-                    ]
-                }],
-                max_tokens=500,
-                temperature=0.7
-            )
-            
-            return completion.choices[0].message.content
-        else:
-            # Use default logic
-            result = self.generate_caption_for_entry(json_entry)
-            return result.get("dense_caption", "")
 
 
 # Example usage
@@ -288,8 +222,8 @@ def main():
     # Initialize generator
     generator = DenseCaptionGenerator(
         api_key=os.getenv("DASHSCOPE_API_KEY"),  # Or provide directly
-        image_dir="images",  # Directory containing video frames
-        json_path="accident_data.json"  # Path to your JSON file
+        image_dir="images",                      # Directory containing video frame folders
+        json_path="filtered_accident_data.json"           # Path to your JSON file
     )
     
     # Process entire JSON file
@@ -297,7 +231,7 @@ def main():
     
     # Or test with single entry
     test_entry = {
-        "Video": "000001.jpg",
+        "Video": "000001",
         "weather(sunny,rainy,snowy,foggy)1-4": 1,
         "light(day,night)1-2": 1,
         "scenes(highway,tunnel,mountain,urban,rural)1-5": 4,
@@ -318,10 +252,9 @@ def main():
         "measures": "Ego-cars should slow down or honk their horns when they stop at intersections or trunk roads where their vision is blocked to prevent other vehicles or pedestrians from rushing out suddenly."
     }
     
-    # Generate caption for single entry
-    caption = generator.generate_single_caption(test_entry)
+    # caption = generator.generate_caption_for_entry(test_entry)
     print("\nGenerated Dense Caption:")
-    print(caption)
+    print(caption["dense_caption"])
 
 
 if __name__ == "__main__":
