@@ -254,7 +254,6 @@ def main():
     
     # caption = generator.generate_caption_for_entry(test_entry)
     print("\nGenerated Dense Caption:")
-    print(caption["dense_caption"])
 
 
 if __name__ == "__main__":
