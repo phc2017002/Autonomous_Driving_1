@@ -88,13 +88,17 @@ Please provide a dense caption that:
 
 Generate a comprehensive, detailed caption for the entire video:"""
         return prompt
-    
+
+
     def get_video_frames(self, video_folder: str) -> List[Path]:
-        # Try both possible structures
-        folder_path = os.path.join(video_folder, "images")
+        # Convert to Path
+        video_folder_path = Path(video_folder)
+        folder_path = video_folder_path / "images"
+
+        # If that folder doesn't exist, try alternative
         if not folder_path.exists():
-            folder_path = self.image_dir / video_folder
-        
+            folder_path = self.image_dir / video_folder_path
+
         print(f"Looking for frames in: {folder_path}")
 
         if not folder_path.exists():
@@ -110,6 +114,7 @@ Generate a comprehensive, detailed caption for the entire video:"""
         print(f"Found {len(frames)} frames in {folder_path}")
 
         return frames
+
 
     
     def generate_caption_for_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
