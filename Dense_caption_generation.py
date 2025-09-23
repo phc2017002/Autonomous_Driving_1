@@ -90,30 +90,27 @@ Generate a comprehensive, detailed caption for the entire video:"""
         return prompt
     
     def get_video_frames(self, video_folder: str) -> List[Path]:
-        """
-        Get a list of frame images from a video folder
-        
-        Args:
-            video_folder: Name of the folder containing frames
-            max_frames: Maximum frames to sample for captioning
-        
-        Returns:
-            List of image paths
-        """
+        # Try both possible structures
         folder_path = self.image_dir / video_folder
-        if not folder_path.exists() or not folder_path.is_dir():
-            print(f"Warning: Video folder {video_folder} not found")
+        if not folder_path.exists():
+            folder_path = self.image_dir / video_folder
+        
+        print(f"Looking for frames in: {folder_path}")
+
+        if not folder_path.exists():
+            print(f"Warning: Video folder {folder_path} not found")
             return []
+
+        # Allow jpg/jpeg/png in any case
+        frames = sorted([
+            f for f in folder_path.iterdir() 
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png"]
+        ])
         
-        # List all jpg/png frames
-        frames = sorted([f for f in folder_path.iterdir() if f.suffix.lower() in [".jpg", ".jpeg", ".png"]])
-        
-        if not frames:
-            print(f"Warning: No frames found in {video_folder}")
-            return []
-        
-        
+        print(f"Found {len(frames)} frames in {folder_path}")
+
         return frames
+
     
     def generate_caption_for_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
         """
