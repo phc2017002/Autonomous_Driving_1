@@ -124,7 +124,7 @@ Generate a comprehensive, detailed caption for the entire video:"""
         prompt = self.generate_dense_caption_prompt(context)
         
         # Load multiple frames
-        image_paths = self.get_video_frames(video_folder, max_frames=12)
+        image_paths = self.get_video_frames(video_folder)
         
         if not image_paths:
             print(f"Warning: No frames found for {video_folder}")
