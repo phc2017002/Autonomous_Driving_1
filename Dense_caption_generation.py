@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 class DenseCaptionGenerator:
-    def __init__(self, api_key: str = None, image_dir: str = "images", json_path: str = "data.json"):
+    def __init__(self, api_key: str = None, image_dir: str = "", json_path: str = "data.json"):
         """
         Initialize the Dense Caption Generator
         
@@ -91,7 +91,7 @@ Generate a comprehensive, detailed caption for the entire video:"""
     
     def get_video_frames(self, video_folder: str) -> List[Path]:
         # Try both possible structures
-        folder_path = self.image_dir / video_folder
+        folder_path = video_folder / "images"
         if not folder_path.exists():
             folder_path = self.image_dir / video_folder
         
