@@ -1210,11 +1210,13 @@ Return JSON array:
 
 
 def main():
-    """Main function to run the complete accident video analysis"""
+    """Main function to run the complete accident video analysis on multiple folders"""
     
     # Configuration
     BASE_DIR = "."
-    VIDEO_FOLDER = "000909"  # Video with door-opening accident
+    PARENT_FOLDER = "44-62"
+    START_FOLDER = 44
+    END_FOLDER = 50  # inclusive
     
     # Check for API key
     api_key = os.getenv("DASHSCOPE_API_KEY")
@@ -1242,34 +1244,50 @@ def main():
         device="cuda" if torch.cuda.is_available() else "cpu",
         enable_tracking=enable_tracking
     )
-    
-    # Process video
-    print("\n" + "="*70)
-    print(f"ANALYZING VIDEO: {VIDEO_FOLDER}")
-    print("="*70)
-    
-    try:
-        results = analyzer.process_video_complete(
-            video_folder=VIDEO_FOLDER,
-            output_base_dir="accident_analysis_output_new_on_entire_video",
-            generate_caption=True,
-            track_objects=enable_tracking,
-            visualize=enable_tracking,
-            use_all_frames_for_tracking=True  # Use ALL frames for tracking/visualization
-        )
+
+    # Loop over numbered folders (44–50)
+    for folder_num in range(START_FOLDER, END_FOLDER + 1):
+        folder_path = os.path.join(BASE_DIR, PARENT_FOLDER, str(folder_num))
+        if not os.path.isdir(folder_path):
+            print(f"\n⚠️ Skipping {folder_path} — not a directory.")
+            continue
         
-        print("\n🎉 SUCCESS! Analysis complete.")
-        print("\nGenerated outputs:")
-        print("1. Grounded caption with two sections (pre-accident and accident)")
-        print("2. Initial accident object detections")
-        if enable_tracking:
-            print("3. Accident object tracking with bounding boxes for ALL frames")
-            print("4. Visualization frames and videos containing ALL frames")
+        print("\n" + "="*80)
+        print(f"PROCESSING FOLDER: {folder_num}")
+        print("="*80)
         
-    except Exception as e:
-        print(f"\n✗ Error during analysis: {e}")
-        import traceback
-        traceback.print_exc()
+        # Loop through each subfolder (video folder) inside
+        subfolders = [f for f in os.listdir(folder_path) 
+                      if os.path.isdir(os.path.join(folder_path, f))]
+        
+        for video_folder in subfolders:
+            video_path = os.path.join(folder_path, video_folder)
+            print("\n" + "-"*70)
+            print(f"ANALYZING VIDEO FOLDER: {video_folder}")
+            print("-"*70)
+            
+            try:
+                results = analyzer.process_video_complete(
+                    video_folder=video_path,
+                    output_base_dir=os.path.join("accident_analysis_output", f"{folder_num}_{video_folder}"),
+                    generate_caption=True,
+                    track_objects=enable_tracking,
+                    visualize=enable_tracking,
+                    use_all_frames_for_tracking=True
+                )
+                
+                print("\n✅ SUCCESS! Analysis complete for:", video_folder)
+                print("Generated outputs:")
+                print("1. Grounded caption (pre-accident & accident)")
+                print("2. Initial accident detections")
+                if enable_tracking:
+                    print("3. Object tracking for all frames")
+                    print("4. Visualization frames/videos generated")
+            
+            except Exception as e:
+                print(f"\n✗ Error during analysis of {video_folder}: {e}")
+                import traceback
+                traceback.print_exc()
 
 
 if __name__ == "__main__":
