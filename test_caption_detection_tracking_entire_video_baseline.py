@@ -166,6 +166,100 @@ class AccidentVideoAnalyzer:
             
         return annotations
     
+    def detect_accident_frame_with_qwen(self, video_folder: Path, total_frames: int) -> int:
+        """Detect accident frame using qwen3-vl-plus instead of ground truth"""
+        print(f"Detecting accident frame using qwen3-vl-plus for video {video_folder.name}")
+        
+        # Get available frames
+        available_frames = self.get_available_frames(video_folder)
+        if not available_frames:
+            return 0
+        
+        # Use ALL frames for accident detection
+        selected_frames = []
+        for i, frame_path in enumerate(available_frames):
+            numbers = re.findall(r'\d+', frame_path.stem)
+            frame_num = int(numbers[0]) if numbers else i + 1
+            selected_frames.append((frame_num, frame_path))
+        
+        # Prepare frames for API
+        frames_for_api = []
+        frames_for_api.append({
+            "text": f"Analyzing {len(selected_frames)} frames from a {total_frames}-frame video to detect accident frame.\n"
+        })
+        
+        for frame_num, frame_path in selected_frames:
+            frames_for_api.append({"text": f"\nFrame {frame_num}:"})
+            frames_for_api.append({"image_path": str(frame_path)})
+        
+        # Create prompt for accident frame detection
+        prompt = f"""Analyze these frames from a {total_frames}-frame video and determine if there is an accident and at which frame it occurs.
+
+Look for:
+- Vehicle collisions
+- Sudden changes in vehicle behavior
+- Objects falling off vehicles
+- Emergency braking or swerving
+- Any abnormal traffic events
+
+Return your response in this exact format:
+ACCIDENT_DETECTED: [YES/NO]
+ACCIDENT_FRAME: [frame_number or 0 if no accident]
+
+If accident is detected, provide the frame number where the accident first becomes visible. If no accident is detected, return ACCIDENT_FRAME: 0."""
+        
+        frames_for_api.append({"text": prompt})
+        
+        try:
+            # Call API
+            if self.use_openai_client:
+                content = []
+                for item in frames_for_api:
+                    if "text" in item:
+                        content.append({"type": "text", "text": item["text"]})
+                    elif "image_path" in item:
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {"url": self.create_local_image_url(item["image_path"])}
+                        })
+                
+                completion = self.client.chat.completions.create(
+                    model="qwen3-vl-plus",
+                    messages=[{"role": "user", "content": content}],
+                    max_tokens=1000,
+                    temperature=0.1
+                )
+                response = completion.choices[0].message.content
+            else:
+                response = self.call_api_with_requests_multi_image(
+                    frames_for_api, model="qwen3-vl-plus", max_tokens=1000, temperature=0.1
+                )
+            
+            # Parse response
+            accident_detected = False
+            accident_frame = 0
+            
+            if "ACCIDENT_DETECTED: YES" in response:
+                accident_detected = True
+                # Extract frame number
+                frame_match = re.search(r'ACCIDENT_FRAME:\s*(\d+)', response)
+                if frame_match:
+                    accident_frame = int(frame_match.group(1))
+            
+            print(f"qwen3-vl-plus prediction: accident_detected={accident_detected}, accident_frame={accident_frame}")
+            
+            # Log baseline prediction for evaluation
+            if accident_detected:
+                print(f"  -> BASELINE: Accident detected at frame {accident_frame}")
+            else:
+                print(f"  -> BASELINE: No accident detected")
+            
+            return accident_frame
+            
+        except Exception as e:
+            print(f"Error detecting accident frame with qwen3-vl-plus: {e}")
+            return 0
+
     def load_video_metadata(self, video_folder: Path) -> VideoMetadata:
         """Load metadata from cap_annotations.json, embedded data, or video folder"""
         video_id = video_folder.name
@@ -175,7 +269,13 @@ class AccidentVideoAnalyzer:
             print(f"Using metadata from cap_annotations.json for video {video_id}")
             data = self.all_annotations[video_id]
         
-            # Create VideoMetadata from annotation data
+            # Get total frames first
+            total_frames = data.get("total frames", 0)
+            
+            # Detect accident frame using qwen3-vl-plus instead of ground truth
+            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            
+            # Create VideoMetadata from annotation data with predicted accident frame
             metadata = VideoMetadata(
                 video_id=data.get("Video", video_id),
                 weather=data.get("weather(sunny,rainy,snowy,foggy)1-4", 1),
@@ -185,8 +285,8 @@ class AccidentVideoAnalyzer:
                 accident=bool(data.get("whether an accident occurred (1/0)", 0)),
                 abnormal_start=data.get("abnormal start frame", 0),
                 abnormal_end=data.get("abnormal end frame", 0),
-                accident_frame=data.get("accident frame", 0),
-                total_frames=data.get("total frames", 0),
+                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                total_frames=total_frames,
                 dense_caption=data.get("texts", ""),
                 causes=data.get("causes", ""),
                 measures=data.get("measures", "")
@@ -207,6 +307,12 @@ class AccidentVideoAnalyzer:
             print(f"Using embedded metadata for video {video_id}")
             data = self.embedded_metadata[video_id]
         
+            # Get total frames first
+            total_frames = data["total frames"]
+            
+            # Detect accident frame using qwen3-vl-plus instead of ground truth
+            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+        
             metadata = VideoMetadata(
                 video_id=data["Video"],
                 weather=data["weather(sunny,rainy,snowy,foggy)1-4"],
@@ -216,8 +322,8 @@ class AccidentVideoAnalyzer:
                 accident=bool(data["whether an accident occurred (1/0)"]),
                 abnormal_start=data["abnormal start frame"],
                 abnormal_end=data["abnormal end frame"],
-                accident_frame=data["accident frame"],
-                total_frames=data["total frames"],
+                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                total_frames=total_frames,
                 dense_caption=data.get("texts", ""),
                 causes=data["causes"],
                 measures=data["measures"]
@@ -232,6 +338,12 @@ class AccidentVideoAnalyzer:
             with open(metadata_file, 'r') as f:
                 data = json.load(f)
         
+            # Get total frames first
+            total_frames = data.get("total_frames", 0)
+            
+            # Detect accident frame using qwen3-vl-plus instead of ground truth
+            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+        
             metadata = VideoMetadata(
                 video_id=data.get("video_id", video_folder.name),
                 weather=data.get("weather", 1),
@@ -241,8 +353,8 @@ class AccidentVideoAnalyzer:
                 accident=data.get("accident", False),
                 abnormal_start=data.get("abnormal_start", 0),
                 abnormal_end=data.get("abnormal_end", 0),
-                accident_frame=data.get("accident_frame", 0),
-                total_frames=data.get("total_frames", 0),
+                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                total_frames=total_frames,
                 dense_caption=data.get("dense_caption", ""),
                 causes=data.get("causes", ""),
                 measures=data.get("measures", "")
@@ -253,17 +365,22 @@ class AccidentVideoAnalyzer:
             print(f"Available video IDs in annotations (first 10): {list(self.all_annotations.keys())[:10]}")
         
             frames = self.get_available_frames(video_folder)
+            total_frames = len(frames)
+            
+            # Detect accident frame using qwen3-vl-plus even for videos without metadata
+            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            
             metadata = VideoMetadata(
                 video_id=video_folder.name,
                 weather=1,
                 light=1,
                 scene=4,
                 road=1,
-                accident=False,
+                accident=predicted_accident_frame > 0,  # Set accident based on prediction
                 abnormal_start=0,
                 abnormal_end=0,
-                accident_frame=0,
-                total_frames=len(frames),
+                accident_frame=predicted_accident_frame,  # Use predicted accident frame
+                total_frames=total_frames,
                 dense_caption="Traffic video footage",
                 causes="",
                 measures=""
@@ -387,7 +504,7 @@ class AccidentVideoAnalyzer:
         """Select representative frames for caption generation (NOT for video composition)"""
         total_frames = len(available_frames)
         
-        if video_metadata.accident and video_metadata.abnormal_start > 0:
+        if video_metadata.accident and video_metadata.accident_frame > 0:
             # Key moments for accident videos
             key_moments = [
                 1,
@@ -440,42 +557,35 @@ class AccidentVideoAnalyzer:
                                              num_frames: int) -> str:
         """Create prompt for two-section grounded caption"""
         
-        if video_metadata.video_id == "000909":
-            incident_description = """This is a door-opening accident where a parked vehicle opens its door into the path of passing motorcycles.
-The incident occurs at night on an urban arterial road."""
-        else:
-            incident_description = video_metadata.causes if video_metadata.accident else "No incident"
-        
         prompt = f"""Generate a comprehensive grounded caption in TWO DISTINCT SECTIONS:
 
-VIDEO INFO:
-- Accident Frame: {video_metadata.accident_frame}
-- Total Frames: {video_metadata.total_frames}
-- Incident: {incident_description}
+        VIDEO INFO:
+        * Total Frames: {video_metadata.total_frames}
 
-SECTION 1 - PRE-ACCIDENT SECTION (Frames 1-{video_metadata.accident_frame-1}):
-Use standard XML tags: <road>, <car>, <motorcycle>, <building>, <tree>, etc.
+        SECTION 1 - PRE-ACCIDENT SECTION:
+        Use standard XML tags: <road>, <car>, <motorcycle>, <building>, <tree>, etc.
 
-SECTION 2 - ACCIDENT AND RECOVERY SECTION (Frame {video_metadata.accident_frame} onwards):
-Use SPECIAL ACCIDENT TAGS for involved objects:
-- <accident_object_1>primary object</accident_object_1>
-- <accident_object_2>affected object</accident_object_2>
-- <accident_object_3>other affected</accident_object_3>
-- <accident_object_4>debris/secondary</accident_object_4>
+        SECTION 2 - ACCIDENT AND RECOVERY SECTION:
+        Use SPECIAL ACCIDENT TAGS for involved objects:
+        * <accident_object_1>primary object</accident_object_1>
+        * <accident_object_2>affected object</accident_object_2>
+        * <accident_object_3>other affected</accident_object_3>
+        * <accident_object_4>debris/secondary</accident_object_4>
 
-FORMAT:
+        FORMAT:
 
-PRE-ACCIDENT SECTION (Normal Tags):
-----------------------------------------
-[Describe normal conditions using standard tags]
+        PRE-ACCIDENT SECTION (Normal Tags):
+        ----------------------------------------
+        [Describe normal scene conditions before the accident using the standard tags above.]
 
-At **
+        At **
 
-ACCIDENT AND RECOVERY SECTION (Accident Tags):
-----------------------------------------
-Frame {video_metadata.accident_frame}**, the accident occurs: [Use accident_object tags]
+        ACCIDENT AND RECOVERY SECTION (Accident Tags):
+        ----------------------------------------
+        The caption should describe the accident occurrence and subsequent recovery using only the <accident_object_*> tags above (identify roles: primary, affected, other, debris). Do NOT reference frame numbers. Describe sequence, impact, visible damage, movement, and immediate aftermath; include recovery actions if visible.
 
-Generate the caption now:"""
+        Generate the caption now:
+        """
         
         return prompt
     
@@ -528,14 +638,15 @@ Generate the caption now:"""
                                         accident_frame: int) -> List[Dict]:
         """Detect accident objects in a single frame"""
         prompt = f"""Analyzing frame {frame_num} (accident at frame {accident_frame}).
-Detect ONLY accident-related objects:
-- accident_object_1: primary accident object (e.g., opening door, detached tire)
-- accident_object_2: affected vehicle/motorcycle
-- accident_object_3: other affected vehicles
-- accident_object_4: debris or secondary objects
+        Detect ONLY accident-related objects:
+        - accident_object_1: primary accident object (e.g., opening door, detached tire)
+        - accident_object_2: affected vehicle/motorcycle
+        - accident_object_3: other affected vehicles
+        - accident_object_4: debris or secondary objects
 
-Return JSON array:
-[{{"bbox_2d": [x1,y1,x2,y2], "object_label": "accident_object_1", "type": "description", "is_accident_related": true}}]"""
+        Return JSON array:
+        [{{"bbox_2d": [x1,y1,x2,y2], "object_label": "accident_object_1", "type": "description", "is_accident_related": true}}]"""
+
         
         try:
             image_url = self.create_local_image_url(image_path)
@@ -931,6 +1042,7 @@ Return JSON array:
                 selected_frames = self.select_representative_frames(
                     video_metadata, available_frames, max_frames=30
                 )
+                # predict selected frames from qwen3-vl-plus, not from groundtruth
                 
                 frame_numbers = [num for num, _ in selected_frames]
                 print(f"Selected {len(selected_frames)} representative frames for caption: {frame_numbers}")
@@ -941,9 +1053,12 @@ Return JSON array:
                     "text": f"Analyzing {len(selected_frames)} frames from a {video_metadata.total_frames}-frame video.\n"
                            f"Frame numbers: {frame_numbers}\n"
                 })
+
+                # predict accident frame from qwen3-vl-plus, not from groundtruth
                 
                 for frame_num, frame_path in selected_frames:
-                    if frame_num < video_metadata.accident_frame:
+                    # change condition from groundtruth to qwen3-vl-plus based accident frame
+                    if video_metadata.accident_frame > 0 and frame_num < video_metadata.accident_frame: 
                         section = "PRE-ACCIDENT"
                     else:
                         section = "ACCIDENT/RECOVERY"
@@ -1002,7 +1117,8 @@ Return JSON array:
                 print(f"✗ Failed to generate grounded caption: {e}")
         
         # Step 2: Track accident objects (using ALL frames)
-        if track_objects and video_metadata.accident and self.enable_tracking:
+        # predict accident frame from qwen3-vl-plus, not from groundtruth
+        if track_objects and video_metadata.accident and video_metadata.accident_frame > 0 and self.enable_tracking:
             print(f"\n{'='*60}")
             print("STEP 2: Tracking Accident Objects")
             print(f"{'='*60}")
@@ -1011,6 +1127,7 @@ Return JSON array:
                 # Detect objects in accident frames
                 initial_detections = {}
                 for offset in range(8):
+                    # change condition from groundtruth to qwen3-vl-plus based accident frame
                     frame_num = video_metadata.accident_frame + offset
                     # Find the frame path
                     frame_path = None
@@ -1034,17 +1151,10 @@ Return JSON array:
                 if not any(initial_detections.values()):
                     print("No accident objects detected")
                 else:
-                    # Load ALL frames for tracking
-                    if use_all_frames_for_tracking:
-                        # Use ALL frames
-                        start_frame = 1
-                        end_frame = video_metadata.total_frames
-                        print(f"Using ALL frames ({start_frame} to {end_frame}) for tracking")
-                    else:
-                        # Use limited range around accident
-                        start_frame = max(1, video_metadata.accident_frame - 10)
-                        end_frame = min(video_metadata.accident_frame + 50, video_metadata.total_frames)
-                        print(f"Using frames {start_frame} to {end_frame} for tracking")
+                    # Use ALL frames
+                    start_frame = 1
+                    end_frame = video_metadata.total_frames
+                    print(f"Using ALL frames ({start_frame} to {end_frame}) for tracking")
                     
                     frames_list = []
                     frame_paths = []
@@ -1199,7 +1309,27 @@ Return JSON array:
                 import traceback
                 traceback.print_exc()
         
-        # Save combined analysis results
+        # Save baseline evaluation results separately
+        gt_accident_frame = 0
+        if video_id in self.all_annotations:
+            gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
+        
+        baseline_evaluation = {
+            "video_id": video_id,
+            "predicted_accident_frame": video_metadata.accident_frame,
+            "ground_truth_accident_frame": gt_accident_frame,
+            "frame_difference": abs(video_metadata.accident_frame - gt_accident_frame) if video_metadata.accident_frame > 0 and gt_accident_frame > 0 else None,
+            "prediction_correct": video_metadata.accident_frame == gt_accident_frame,
+            "false_positive": video_metadata.accident_frame > 0 and gt_accident_frame == 0,
+            "false_negative": video_metadata.accident_frame == 0 and gt_accident_frame > 0,
+            "total_frames": video_metadata.total_frames,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        with open(output_dir / "baseline_evaluation.json", 'w') as f:
+            json.dump(baseline_evaluation, f, indent=2)
+        
+        # Save combined analysis results (without baseline_evaluation)
         with open(output_dir / "complete_analysis.json", 'w') as f:
             json_safe_results = {
                 "video_id": video_id,
@@ -1223,19 +1353,41 @@ Return JSON array:
             }
             json.dump(json_safe_results, f, indent=2)
         
+        # Print baseline evaluation summary
+        print(f"\n{'='*70}")
+        print(f"BASELINE EVALUATION SUMMARY")
+        print(f"{'='*70}")
+        print(f"Video ID: {video_id}")
+        print(f"Predicted Accident Frame: {video_metadata.accident_frame}")
+        print(f"Accident Detected: {'YES' if video_metadata.accident_frame > 0 else 'NO'}")
+        if video_id in self.all_annotations:
+            gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
+            print(f"Ground Truth Accident Frame: {gt_accident_frame}")
+            if video_metadata.accident_frame > 0 and gt_accident_frame > 0:
+                frame_diff = abs(video_metadata.accident_frame - gt_accident_frame)
+                print(f"Frame Difference: {frame_diff} frames")
+            elif video_metadata.accident_frame > 0 and gt_accident_frame == 0:
+                print("⚠️  BASELINE: False Positive (predicted accident, but GT shows no accident)")
+            elif video_metadata.accident_frame == 0 and gt_accident_frame > 0:
+                print("⚠️  BASELINE: False Negative (no accident predicted, but GT shows accident)")
+            else:
+                print("✓ BASELINE: True Negative (no accident predicted, GT shows no accident)")
+        print(f"{'='*70}")
+        
         print(f"\n{'='*70}")
         print(f"✓ PROCESSING COMPLETE")
         print(f"📁 Results saved to: {output_dir}")
         print(f"📊 Total frames processed: {len(all_frame_paths)}")
         print(f"\nFolder structure:")
         print(f"  {output_dir}/")
+        print(f"  ├── baseline_evaluation.json")
         print(f"  ├── initial_detections.json")
         print(f"  ├── complete_analysis.json")
         if generate_caption:
             print(f"  ├── grounded_captions/")
             print(f"  │   ├── {video_id}_grounded_caption.json")
             print(f"  │   └── {video_id}_grounded_caption.txt")
-        if track_objects and video_metadata.accident:
+        if track_objects and video_metadata.accident and video_metadata.accident_frame > 0:
             print(f"  ├── tracking_data/")
             print(f"  │   ├── bounding_boxes.json")
             print(f"  │   ├── tracking_metadata.json")
@@ -1315,7 +1467,7 @@ def main():
         print("="*70)
         
         # Check if already processed (optional - skip if output already exists)
-        output_dir = Path(f"accident_analysis_output_baseline_on_entire_video/{video_id}")
+        output_dir = Path(f"accident_analysis_output_new_on_entire_video/{video_id}")
         if output_dir.exists() and (output_dir / "complete_analysis.json").exists():
             print(f"⚠️ Video {video_id} already processed. Skipping...")
             skipped.append(video_id)
@@ -1324,7 +1476,7 @@ def main():
         try:
             results = analyzer.process_video_complete(
             video_folder=str(video_folder),
-            output_base_dir="accident_analysis_output_baseline_on_entire_video",
+            output_base_dir="accident_analysis_output_new_on_entire_video",
             generate_caption=True,
             track_objects=enable_tracking,
             visualize=enable_tracking,
