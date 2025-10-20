@@ -1315,7 +1315,7 @@ def main():
         print("="*70)
         
         # Check if already processed (optional - skip if output already exists)
-        output_dir = Path(f"accident_analysis_output_new_on_entire_video/{video_id}")
+        output_dir = Path(f"accident_analysis_output_baseline_on_entire_video/{video_id}")
         if output_dir.exists() and (output_dir / "complete_analysis.json").exists():
             print(f"⚠️ Video {video_id} already processed. Skipping...")
             skipped.append(video_id)
@@ -1324,7 +1324,7 @@ def main():
         try:
             results = analyzer.process_video_complete(
             video_folder=str(video_folder),
-            output_base_dir="accident_analysis_output_new_on_entire_video",
+            output_base_dir="accident_analysis_output_baseline_on_entire_video",
             generate_caption=True,
             track_objects=enable_tracking,
             visualize=enable_tracking,
