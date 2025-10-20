@@ -1413,20 +1413,129 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                 traceback.print_exc()
         
         # Save baseline evaluation results separately
-        gt_accident_frame = 0
+        # Get ground truth data
+        gt_data = {}
         if video_id in self.all_annotations:
-            gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
+            data = self.all_annotations[video_id]
+            gt_data = {
+                "weather": data.get("weather(sunny,rainy,snowy,foggy)1-4", 1),
+                "light": data.get("light(day,night)1-2", 1),
+                "scene": data.get("scenes(highway,tunnel,mountain,urban,rural)1-5", 1),
+                "road": data.get("linear(arterials,curve,intersection,T-junction,ramp) 1-5", 1),
+                "accident": bool(data.get("whether an accident occurred (1/0)", 0)),
+                "abnormal_start": data.get("abnormal start frame", 0),
+                "abnormal_end": data.get("abnormal end frame", 0),
+                "accident_frame": data.get("accident frame", 0),
+                "dense_caption": data.get("texts", ""),
+                "causes": data.get("causes", ""),
+                "measures": data.get("measures", "")
+            }
         
+        # Compare predicted vs ground truth for all metadata
         baseline_evaluation = {
             "video_id": video_id,
-            "predicted_accident_frame": video_metadata.accident_frame,
-            "ground_truth_accident_frame": gt_accident_frame,
-            "frame_difference": abs(video_metadata.accident_frame - gt_accident_frame) if video_metadata.accident_frame > 0 and gt_accident_frame > 0 else None,
-            "prediction_correct": video_metadata.accident_frame == gt_accident_frame,
-            "false_positive": video_metadata.accident_frame > 0 and gt_accident_frame == 0,
-            "false_negative": video_metadata.accident_frame == 0 and gt_accident_frame > 0,
             "total_frames": video_metadata.total_frames,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            
+            # Weather comparison
+            "weather": {
+                "predicted": video_metadata.weather,
+                "ground_truth": gt_data.get("weather", 1),
+                "correct": video_metadata.weather == gt_data.get("weather", 1)
+            },
+            
+            # Light comparison
+            "light": {
+                "predicted": video_metadata.light,
+                "ground_truth": gt_data.get("light", 1),
+                "correct": video_metadata.light == gt_data.get("light", 1)
+            },
+            
+            # Scene comparison
+            "scene": {
+                "predicted": video_metadata.scene,
+                "ground_truth": gt_data.get("scene", 1),
+                "correct": video_metadata.scene == gt_data.get("scene", 1)
+            },
+            
+            # Road comparison
+            "road": {
+                "predicted": video_metadata.road,
+                "ground_truth": gt_data.get("road", 1),
+                "correct": video_metadata.road == gt_data.get("road", 1)
+            },
+            
+            # Accident detection comparison
+            "accident": {
+                "predicted": video_metadata.accident,
+                "ground_truth": gt_data.get("accident", False),
+                "correct": video_metadata.accident == gt_data.get("accident", False),
+                "false_positive": video_metadata.accident and not gt_data.get("accident", False),
+                "false_negative": not video_metadata.accident and gt_data.get("accident", False)
+            },
+            
+            # Frame comparisons
+            "abnormal_start": {
+                "predicted": video_metadata.abnormal_start,
+                "ground_truth": gt_data.get("abnormal_start", 0),
+                "difference": abs(video_metadata.abnormal_start - gt_data.get("abnormal_start", 0))
+            },
+            
+            "abnormal_end": {
+                "predicted": video_metadata.abnormal_end,
+                "ground_truth": gt_data.get("abnormal_end", 0),
+                "difference": abs(video_metadata.abnormal_end - gt_data.get("abnormal_end", 0))
+            },
+            
+            "accident_frame": {
+                "predicted": video_metadata.accident_frame,
+                "ground_truth": gt_data.get("accident_frame", 0),
+                "difference": abs(video_metadata.accident_frame - gt_data.get("accident_frame", 0)) if video_metadata.accident_frame > 0 and gt_data.get("accident_frame", 0) > 0 else None,
+                "correct": video_metadata.accident_frame == gt_data.get("accident_frame", 0)
+            },
+            
+            # Text comparisons (simple length comparison for now)
+            "dense_caption": {
+                "predicted_length": len(video_metadata.dense_caption),
+                "ground_truth_length": len(gt_data.get("dense_caption", "")),
+                "predicted_preview": video_metadata.dense_caption[:100] + "..." if len(video_metadata.dense_caption) > 100 else video_metadata.dense_caption,
+                "ground_truth_preview": gt_data.get("dense_caption", "")[:100] + "..." if len(gt_data.get("dense_caption", "")) > 100 else gt_data.get("dense_caption", "")
+            },
+            
+            "causes": {
+                "predicted_length": len(video_metadata.causes),
+                "ground_truth_length": len(gt_data.get("causes", "")),
+                "predicted_preview": video_metadata.causes[:100] + "..." if len(video_metadata.causes) > 100 else video_metadata.causes,
+                "ground_truth_preview": gt_data.get("causes", "")[:100] + "..." if len(gt_data.get("causes", "")) > 100 else gt_data.get("causes", "")
+            },
+            
+            "measures": {
+                "predicted_length": len(video_metadata.measures),
+                "ground_truth_length": len(gt_data.get("measures", "")),
+                "predicted_preview": video_metadata.measures[:100] + "..." if len(video_metadata.measures) > 100 else video_metadata.measures,
+                "ground_truth_preview": gt_data.get("measures", "")[:100] + "..." if len(gt_data.get("measures", "")) > 100 else gt_data.get("measures", "")
+            },
+            
+            # Overall accuracy summary
+            "overall_accuracy": {
+                "metadata_fields_correct": sum([
+                    video_metadata.weather == gt_data.get("weather", 1),
+                    video_metadata.light == gt_data.get("light", 1),
+                    video_metadata.scene == gt_data.get("scene", 1),
+                    video_metadata.road == gt_data.get("road", 1),
+                    video_metadata.accident == gt_data.get("accident", False),
+                    video_metadata.accident_frame == gt_data.get("accident_frame", 0)
+                ]),
+                "total_metadata_fields": 6,
+                "accuracy_percentage": (sum([
+                    video_metadata.weather == gt_data.get("weather", 1),
+                    video_metadata.light == gt_data.get("light", 1),
+                    video_metadata.scene == gt_data.get("scene", 1),
+                    video_metadata.road == gt_data.get("road", 1),
+                    video_metadata.accident == gt_data.get("accident", False),
+                    video_metadata.accident_frame == gt_data.get("accident_frame", 0)
+                ]) / 6) * 100
+            }
         }
         
         with open(output_dir / "baseline_evaluation.json", 'w') as f:
@@ -1461,20 +1570,35 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
         print(f"BASELINE EVALUATION SUMMARY")
         print(f"{'='*70}")
         print(f"Video ID: {video_id}")
-        print(f"Predicted Accident Frame: {video_metadata.accident_frame}")
-        print(f"Accident Detected: {'YES' if video_metadata.accident_frame > 0 else 'NO'}")
+        
         if video_id in self.all_annotations:
-            gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
-            print(f"Ground Truth Accident Frame: {gt_accident_frame}")
-            if video_metadata.accident_frame > 0 and gt_accident_frame > 0:
-                frame_diff = abs(video_metadata.accident_frame - gt_accident_frame)
-                print(f"Frame Difference: {frame_diff} frames")
-            elif video_metadata.accident_frame > 0 and gt_accident_frame == 0:
+            print(f"\nMETADATA COMPARISON:")
+            print(f"  Weather: Predicted={video_metadata.weather}, GT={gt_data.get('weather', 1)} {'✓' if video_metadata.weather == gt_data.get('weather', 1) else '✗'}")
+            print(f"  Light: Predicted={video_metadata.light}, GT={gt_data.get('light', 1)} {'✓' if video_metadata.light == gt_data.get('light', 1) else '✗'}")
+            print(f"  Scene: Predicted={video_metadata.scene}, GT={gt_data.get('scene', 1)} {'✓' if video_metadata.scene == gt_data.get('scene', 1) else '✗'}")
+            print(f"  Road: Predicted={video_metadata.road}, GT={gt_data.get('road', 1)} {'✓' if video_metadata.road == gt_data.get('road', 1) else '✗'}")
+            print(f"  Accident: Predicted={video_metadata.accident}, GT={gt_data.get('accident', False)} {'✓' if video_metadata.accident == gt_data.get('accident', False) else '✗'}")
+            print(f"  Accident Frame: Predicted={video_metadata.accident_frame}, GT={gt_data.get('accident_frame', 0)} {'✓' if video_metadata.accident_frame == gt_data.get('accident_frame', 0) else '✗'}")
+            
+            print(f"\nFRAME COMPARISONS:")
+            print(f"  Abnormal Start: Predicted={video_metadata.abnormal_start}, GT={gt_data.get('abnormal_start', 0)}, Diff={abs(video_metadata.abnormal_start - gt_data.get('abnormal_start', 0))}")
+            print(f"  Abnormal End: Predicted={video_metadata.abnormal_end}, GT={gt_data.get('abnormal_end', 0)}, Diff={abs(video_metadata.abnormal_end - gt_data.get('abnormal_end', 0))}")
+            if video_metadata.accident_frame > 0 and gt_data.get('accident_frame', 0) > 0:
+                frame_diff = abs(video_metadata.accident_frame - gt_data.get('accident_frame', 0))
+                print(f"  Accident Frame Diff: {frame_diff} frames")
+            
+            print(f"\nOVERALL ACCURACY: {baseline_evaluation['overall_accuracy']['accuracy_percentage']:.1f}% ({baseline_evaluation['overall_accuracy']['metadata_fields_correct']}/{baseline_evaluation['overall_accuracy']['total_metadata_fields']} fields correct)")
+            
+            # Show error types
+            if baseline_evaluation['accident']['false_positive']:
                 print("⚠️  BASELINE: False Positive (predicted accident, but GT shows no accident)")
-            elif video_metadata.accident_frame == 0 and gt_accident_frame > 0:
+            elif baseline_evaluation['accident']['false_negative']:
                 print("⚠️  BASELINE: False Negative (no accident predicted, but GT shows accident)")
-            else:
-                print("✓ BASELINE: True Negative (no accident predicted, GT shows no accident)")
+            elif baseline_evaluation['accident']['correct']:
+                print("✓ BASELINE: Accident detection correct")
+        else:
+            print(f"No ground truth data available for comparison")
+        
         print(f"{'='*70}")
         
         print(f"\n{'='*70}")
