@@ -1309,13 +1309,28 @@ If accident is detected, provide the frame number where the accident first becom
                 import traceback
                 traceback.print_exc()
         
-        # Save combined analysis results
+        # Save baseline evaluation results separately
+        gt_accident_frame = 0
+        if video_id in self.all_annotations:
+            gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
+        
+        baseline_evaluation = {
+            "video_id": video_id,
+            "predicted_accident_frame": video_metadata.accident_frame,
+            "ground_truth_accident_frame": gt_accident_frame,
+            "frame_difference": abs(video_metadata.accident_frame - gt_accident_frame) if video_metadata.accident_frame > 0 and gt_accident_frame > 0 else None,
+            "prediction_correct": video_metadata.accident_frame == gt_accident_frame,
+            "false_positive": video_metadata.accident_frame > 0 and gt_accident_frame == 0,
+            "false_negative": video_metadata.accident_frame == 0 and gt_accident_frame > 0,
+            "total_frames": video_metadata.total_frames,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        with open(output_dir / "baseline_evaluation.json", 'w') as f:
+            json.dump(baseline_evaluation, f, indent=2)
+        
+        # Save combined analysis results (without baseline_evaluation)
         with open(output_dir / "complete_analysis.json", 'w') as f:
-            # Get ground truth for comparison
-            gt_accident_frame = 0
-            if video_id in self.all_annotations:
-                gt_accident_frame = self.all_annotations[video_id].get("accident frame", 0)
-            
             json_safe_results = {
                 "video_id": video_id,
                 "metadata": {
@@ -1327,14 +1342,6 @@ If accident is detected, provide the frame number where the accident first becom
                     "light": video_metadata.get_light_str(),
                     "scene": video_metadata.get_scene_str(),
                     "road": video_metadata.get_road_str()
-                },
-                "baseline_evaluation": {
-                    "predicted_accident_frame": video_metadata.accident_frame,
-                    "ground_truth_accident_frame": gt_accident_frame,
-                    "frame_difference": abs(video_metadata.accident_frame - gt_accident_frame) if video_metadata.accident_frame > 0 and gt_accident_frame > 0 else None,
-                    "prediction_correct": video_metadata.accident_frame == gt_accident_frame,
-                    "false_positive": video_metadata.accident_frame > 0 and gt_accident_frame == 0,
-                    "false_negative": video_metadata.accident_frame == 0 and gt_accident_frame > 0
                 },
                 "output_dir": str(output_dir),
                 "components": {
@@ -1373,6 +1380,7 @@ If accident is detected, provide the frame number where the accident first becom
         print(f"📊 Total frames processed: {len(all_frame_paths)}")
         print(f"\nFolder structure:")
         print(f"  {output_dir}/")
+        print(f"  ├── baseline_evaluation.json")
         print(f"  ├── initial_detections.json")
         print(f"  ├── complete_analysis.json")
         if generate_caption:
