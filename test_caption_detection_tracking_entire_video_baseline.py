@@ -166,16 +166,28 @@ class AccidentVideoAnalyzer:
             
         return annotations
     
-    def detect_accident_frame_with_qwen(self, video_folder: Path, total_frames: int) -> int:
-        """Detect accident frame using qwen3-vl-plus instead of ground truth"""
-        print(f"Detecting accident frame using qwen3-vl-plus for video {video_folder.name}")
+    def detect_accident_frame_with_qwen(self, video_folder: Path, total_frames: int) -> dict:
+        """Detect accident frame and extract video metadata using qwen3-vl-plus"""
+        print(f"Detecting accident and extracting metadata using qwen3-vl-plus for video {video_folder.name}")
         
         # Get available frames
         available_frames = self.get_available_frames(video_folder)
         if not available_frames:
-            return 0
+            return {
+                "weather": 1,
+                "light": 1,
+                "scene": 1,
+                "road": 1,
+                "accident": False,
+                "abnormal_start": 0,
+                "abnormal_end": 0,
+                "accident_frame": 0,
+                "dense_caption": "",
+                "causes": "",
+                "measures": ""
+            }
         
-        # Use ALL frames for accident detection
+        # Use ALL frames for analysis
         selected_frames = []
         for i, frame_path in enumerate(available_frames):
             numbers = re.findall(r'\d+', frame_path.stem)
@@ -185,29 +197,49 @@ class AccidentVideoAnalyzer:
         # Prepare frames for API
         frames_for_api = []
         frames_for_api.append({
-            "text": f"Analyzing {len(selected_frames)} frames from a {total_frames}-frame video to detect accident frame.\n"
+            "text": f"Analyzing {len(selected_frames)} frames from a {total_frames}-frame video to extract metadata and detect accidents.\n"
         })
         
         for frame_num, frame_path in selected_frames:
             frames_for_api.append({"text": f"\nFrame {frame_num}:"})
             frames_for_api.append({"image_path": str(frame_path)})
         
-        # Create prompt for accident frame detection
-        prompt = f"""Analyze these frames from a {total_frames}-frame video and determine if there is an accident and at which frame it occurs.
+        # Create comprehensive prompt for metadata extraction
+        prompt = f"""Analyze these frames from a {total_frames}-frame video and extract the following information:
+
+1. Weather conditions: Determine if it's sunny (1), rainy (2), snowy (3), or foggy (4)
+2. Lighting: Determine if it's day (1) or night (2)
+3. Scene type: Identify if it's highway (1), tunnel (2), mountain (3), urban (4), or rural (5)
+4. Road type: Identify if it's arterials/linear (1), curve (2), intersection (3), T-junction (4), or ramp (5)
+5. Accident detection: Determine if an accident occurs in the video
+6. If accident/abnormal event detected:
+   - Frame where abnormal behavior starts
+   - Frame where abnormal behavior ends
+   - Frame where actual accident/collision occurs (if applicable)
+7. Dense caption: Provide a detailed description of what happens in the video
+8. Causes: If accident occurs, describe the likely causes
+9. Measures: If accident occurs, suggest preventive measures
 
 Look for:
-- Vehicle collisions
+- Vehicle collisions or near-misses
 - Sudden changes in vehicle behavior
-- Objects falling off vehicles
 - Emergency braking or swerving
+- Traffic violations
 - Any abnormal traffic events
 
-Return your response in this exact format:
-ACCIDENT_DETECTED: [YES/NO]
-ACCIDENT_FRAME: [frame_number or 0 if no accident]
+Return your response in this EXACT format (use the exact labels and formatting):
+WEATHER: [1-4]
+LIGHT: [1-2]
+SCENE: [1-5]
+ROAD: [1-5]
+ACCIDENT: [YES/NO]
+ABNORMAL_START: [frame_number or 0]
+ABNORMAL_END: [frame_number or 0]
+ACCIDENT_FRAME: [frame_number or 0]
+DENSE_CAPTION: [detailed description of the video]
+CAUSES: [accident causes or "N/A" if no accident]
+MEASURES: [preventive measures or "N/A" if no accident]"""
 
-If accident is detected, provide the frame number where the accident first becomes visible. If no accident is detected, return ACCIDENT_FRAME: 0."""
-        
         frames_for_api.append({"text": prompt})
         
         try:
@@ -226,39 +258,110 @@ If accident is detected, provide the frame number where the accident first becom
                 completion = self.client.chat.completions.create(
                     model="qwen3-vl-plus",
                     messages=[{"role": "user", "content": content}],
-                    max_tokens=1000,
+                    max_tokens=2000,
                     temperature=0.1
                 )
                 response = completion.choices[0].message.content
             else:
                 response = self.call_api_with_requests_multi_image(
-                    frames_for_api, model="qwen3-vl-plus", max_tokens=1000, temperature=0.1
+                    frames_for_api, model="qwen3-vl-plus", max_tokens=2000, temperature=0.1
                 )
             
-            # Parse response
-            accident_detected = False
-            accident_frame = 0
+            # Parse response with defaults
+            metadata = {
+                "weather": 1,
+                "light": 1,
+                "scene": 1,
+                "road": 1,
+                "accident": False,
+                "abnormal_start": 0,
+                "abnormal_end": 0,
+                "accident_frame": 0,
+                "dense_caption": "",
+                "causes": "",
+                "measures": ""
+            }
             
-            if "ACCIDENT_DETECTED: YES" in response:
-                accident_detected = True
-                # Extract frame number
-                frame_match = re.search(r'ACCIDENT_FRAME:\s*(\d+)', response)
-                if frame_match:
-                    accident_frame = int(frame_match.group(1))
+            # Extract weather
+            weather_match = re.search(r'WEATHER:\s*(\d+)', response)
+            if weather_match:
+                metadata["weather"] = min(max(int(weather_match.group(1)), 1), 4)
             
-            print(f"qwen3-vl-plus prediction: accident_detected={accident_detected}, accident_frame={accident_frame}")
+            # Extract light
+            light_match = re.search(r'LIGHT:\s*(\d+)', response)
+            if light_match:
+                metadata["light"] = min(max(int(light_match.group(1)), 1), 2)
             
-            # Log baseline prediction for evaluation
-            if accident_detected:
-                print(f"  -> BASELINE: Accident detected at frame {accident_frame}")
-            else:
-                print(f"  -> BASELINE: No accident detected")
+            # Extract scene
+            scene_match = re.search(r'SCENE:\s*(\d+)', response)
+            if scene_match:
+                metadata["scene"] = min(max(int(scene_match.group(1)), 1), 5)
             
-            return accident_frame
+            # Extract road
+            road_match = re.search(r'ROAD:\s*(\d+)', response)
+            if road_match:
+                metadata["road"] = min(max(int(road_match.group(1)), 1), 5)
+            
+            # Extract accident
+            if "ACCIDENT: YES" in response:
+                metadata["accident"] = True
+            
+            # Extract frame numbers
+            abnormal_start_match = re.search(r'ABNORMAL_START:\s*(\d+)', response)
+            if abnormal_start_match:
+                metadata["abnormal_start"] = int(abnormal_start_match.group(1))
+            
+            abnormal_end_match = re.search(r'ABNORMAL_END:\s*(\d+)', response)
+            if abnormal_end_match:
+                metadata["abnormal_end"] = int(abnormal_end_match.group(1))
+            
+            accident_frame_match = re.search(r'ACCIDENT_FRAME:\s*(\d+)', response)
+            if accident_frame_match:
+                metadata["accident_frame"] = int(accident_frame_match.group(1))
+            
+            # Extract text fields
+            caption_match = re.search(r'DENSE_CAPTION:\s*(.+?)(?=\nCAUSES:|$)', response, re.DOTALL)
+            if caption_match:
+                metadata["dense_caption"] = caption_match.group(1).strip()
+            
+            causes_match = re.search(r'CAUSES:\s*(.+?)(?=\nMEASURES:|$)', response, re.DOTALL)
+            if causes_match:
+                metadata["causes"] = causes_match.group(1).strip()
+            
+            measures_match = re.search(r'MEASURES:\s*(.+?)$', response, re.DOTALL)
+            if measures_match:
+                metadata["measures"] = measures_match.group(1).strip()
+            
+            # Log predictions
+            print(f"qwen3-vl-plus predictions:")
+            print(f"  Weather: {metadata['weather']} (1=sunny, 2=rainy, 3=snowy, 4=foggy)")
+            print(f"  Light: {metadata['light']} (1=day, 2=night)")
+            print(f"  Scene: {metadata['scene']} (1=highway, 2=tunnel, 3=mountain, 4=urban, 5=rural)")
+            print(f"  Road: {metadata['road']} (1=arterials, 2=curve, 3=intersection, 4=T-junction, 5=ramp)")
+            print(f"  Accident: {metadata['accident']}")
+            if metadata['accident']:
+                print(f"  Abnormal start: frame {metadata['abnormal_start']}")
+                print(f"  Abnormal end: frame {metadata['abnormal_end']}")
+                print(f"  Accident frame: {metadata['accident_frame']}")
+            print(f"  Caption: {metadata['dense_caption'][:100]}..." if len(metadata['dense_caption']) > 100 else f"  Caption: {metadata['dense_caption']}")
+            
+            return metadata
             
         except Exception as e:
-            print(f"Error detecting accident frame with qwen3-vl-plus: {e}")
-            return 0
+            print(f"Error detecting metadata with qwen3-vl-plus: {e}")
+            return {
+                "weather": 1,
+                "light": 1,
+                "scene": 1,
+                "road": 1,
+                "accident": False,
+                "abnormal_start": 0,
+                "abnormal_end": 0,
+                "accident_frame": 0,
+                "dense_caption": "",
+                "causes": "",
+                "measures": ""
+            }
 
     def load_video_metadata(self, video_folder: Path) -> VideoMetadata:
         """Load metadata from cap_annotations.json, embedded data, or video folder"""
@@ -272,24 +375,24 @@ If accident is detected, provide the frame number where the accident first becom
             # Get total frames first
             total_frames = data.get("total frames", 0)
             
-            # Detect accident frame using qwen3-vl-plus instead of ground truth
-            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            # Extract comprehensive metadata using qwen3-vl-plus instead of ground truth
+            qwen_metadata = self.detect_accident_frame_with_qwen(video_folder, total_frames)
             
-            # Create VideoMetadata from annotation data with predicted accident frame
+            # Create VideoMetadata from qwen3-vl-plus predictions
             metadata = VideoMetadata(
                 video_id=data.get("Video", video_id),
-                weather=data.get("weather(sunny,rainy,snowy,foggy)1-4", 1),
-                light=data.get("light(day,night)1-2", 1),
-                scene=data.get("scenes(highway,tunnel,mountain,urban,rural)1-5", 1),
-                road=data.get("linear(arterials,curve,intersection,T-junction,ramp) 1-5", 1),
-                accident=bool(data.get("whether an accident occurred (1/0)", 0)),
-                abnormal_start=data.get("abnormal start frame", 0),
-                abnormal_end=data.get("abnormal end frame", 0),
-                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                weather=qwen_metadata["weather"],
+                light=qwen_metadata["light"],
+                scene=qwen_metadata["scene"],
+                road=qwen_metadata["road"],
+                accident=qwen_metadata["accident"],
+                abnormal_start=qwen_metadata["abnormal_start"],
+                abnormal_end=qwen_metadata["abnormal_end"],
+                accident_frame=qwen_metadata["accident_frame"],
                 total_frames=total_frames,
-                dense_caption=data.get("texts", ""),
-                causes=data.get("causes", ""),
-                measures=data.get("measures", "")
+                dense_caption=qwen_metadata["dense_caption"],
+                causes=qwen_metadata["causes"],
+                measures=qwen_metadata["measures"]
             )
         
             # Print loaded metadata for verification
@@ -310,23 +413,23 @@ If accident is detected, provide the frame number where the accident first becom
             # Get total frames first
             total_frames = data["total frames"]
             
-            # Detect accident frame using qwen3-vl-plus instead of ground truth
-            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            # Extract comprehensive metadata using qwen3-vl-plus instead of ground truth
+            qwen_metadata = self.detect_accident_frame_with_qwen(video_folder, total_frames)
         
             metadata = VideoMetadata(
                 video_id=data["Video"],
-                weather=data["weather(sunny,rainy,snowy,foggy)1-4"],
-                light=data["light(day,night)1-2"],
-                scene=data["scenes(highway,tunnel,mountain,urban,rural)1-5"],
-                road=data["linear(arterials,curve,intersection,T-junction,ramp) 1-5"],
-                accident=bool(data["whether an accident occurred (1/0)"]),
-                abnormal_start=data["abnormal start frame"],
-                abnormal_end=data["abnormal end frame"],
-                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                weather=qwen_metadata["weather"],
+                light=qwen_metadata["light"],
+                scene=qwen_metadata["scene"],
+                road=qwen_metadata["road"],
+                accident=qwen_metadata["accident"],
+                abnormal_start=qwen_metadata["abnormal_start"],
+                abnormal_end=qwen_metadata["abnormal_end"],
+                accident_frame=qwen_metadata["accident_frame"],
                 total_frames=total_frames,
-                dense_caption=data.get("texts", ""),
-                causes=data["causes"],
-                measures=data["measures"]
+                dense_caption=qwen_metadata["dense_caption"],
+                causes=qwen_metadata["causes"],
+                measures=qwen_metadata["measures"]
             )
             return metadata
     
@@ -341,23 +444,23 @@ If accident is detected, provide the frame number where the accident first becom
             # Get total frames first
             total_frames = data.get("total_frames", 0)
             
-            # Detect accident frame using qwen3-vl-plus instead of ground truth
-            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            # Extract comprehensive metadata using qwen3-vl-plus instead of ground truth
+            qwen_metadata = self.detect_accident_frame_with_qwen(video_folder, total_frames)
         
             metadata = VideoMetadata(
                 video_id=data.get("video_id", video_folder.name),
-                weather=data.get("weather", 1),
-                light=data.get("light", 1),
-                scene=data.get("scene", 1),
-                road=data.get("road", 1),
-                accident=data.get("accident", False),
-                abnormal_start=data.get("abnormal_start", 0),
-                abnormal_end=data.get("abnormal_end", 0),
-                accident_frame=predicted_accident_frame,  # Use predicted instead of ground truth
+                weather=qwen_metadata["weather"],
+                light=qwen_metadata["light"],
+                scene=qwen_metadata["scene"],
+                road=qwen_metadata["road"],
+                accident=qwen_metadata["accident"],
+                abnormal_start=qwen_metadata["abnormal_start"],
+                abnormal_end=qwen_metadata["abnormal_end"],
+                accident_frame=qwen_metadata["accident_frame"],
                 total_frames=total_frames,
-                dense_caption=data.get("dense_caption", ""),
-                causes=data.get("causes", ""),
-                measures=data.get("measures", "")
+                dense_caption=qwen_metadata["dense_caption"],
+                causes=qwen_metadata["causes"],
+                measures=qwen_metadata["measures"]
                 )
         else:
             # No metadata found - create default
@@ -367,23 +470,23 @@ If accident is detected, provide the frame number where the accident first becom
             frames = self.get_available_frames(video_folder)
             total_frames = len(frames)
             
-            # Detect accident frame using qwen3-vl-plus even for videos without metadata
-            predicted_accident_frame = self.detect_accident_frame_with_qwen(video_folder, total_frames)
+            # Extract comprehensive metadata using qwen3-vl-plus even for videos without metadata
+            qwen_metadata = self.detect_accident_frame_with_qwen(video_folder, total_frames)
             
             metadata = VideoMetadata(
                 video_id=video_folder.name,
-                weather=1,
-                light=1,
-                scene=4,
-                road=1,
-                accident=predicted_accident_frame > 0,  # Set accident based on prediction
-                abnormal_start=0,
-                abnormal_end=0,
-                accident_frame=predicted_accident_frame,  # Use predicted accident frame
+                weather=qwen_metadata["weather"],
+                light=qwen_metadata["light"],
+                scene=qwen_metadata["scene"],
+                road=qwen_metadata["road"],
+                accident=qwen_metadata["accident"],
+                abnormal_start=qwen_metadata["abnormal_start"],
+                abnormal_end=qwen_metadata["abnormal_end"],
+                accident_frame=qwen_metadata["accident_frame"],
                 total_frames=total_frames,
-                dense_caption="Traffic video footage",
-                causes="",
-                measures=""
+                dense_caption=qwen_metadata["dense_caption"],
+                causes=qwen_metadata["causes"],
+                measures=qwen_metadata["measures"]
             )
     
         return metadata
