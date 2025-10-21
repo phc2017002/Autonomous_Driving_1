@@ -256,7 +256,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                         })
                 
                 completion = self.client.chat.completions.create(
-                    model="qwen3-vl-plus",
+                    model="qwen3-vl-plus-2025-09-23",
                     messages=[{"role": "user", "content": content}],
                     max_tokens=2000,
                     temperature=0.1
@@ -264,7 +264,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                 response = completion.choices[0].message.content
             else:
                 response = self.call_api_with_requests_multi_image(
-                    frames_for_api, model="qwen3-vl-plus", max_tokens=2000, temperature=0.1
+                    frames_for_api, model="qwen3-vl-plus-2025-09-23", max_tokens=2000, temperature=0.1
                 )
             
             # Parse response with defaults
@@ -333,7 +333,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                 metadata["measures"] = measures_match.group(1).strip()
             
             # Log predictions
-            print(f"qwen3-vl-plus predictions:")
+            print(f"qwen3-vl-plus-2025-09-23 predictions:")
             print(f"  Weather: {metadata['weather']} (1=sunny, 2=rainy, 3=snowy, 4=foggy)")
             print(f"  Light: {metadata['light']} (1=day, 2=night)")
             print(f"  Scene: {metadata['scene']} (1=highway, 2=tunnel, 3=mountain, 4=urban, 5=rural)")
@@ -556,7 +556,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
         return f"data:{mime_type};base64,{base64_image}"
     
     def call_api_with_requests_multi_image(self, images_with_prompts: List[Dict], 
-                                          model="qwen3-vl-plus", max_tokens=4000, temperature=0.1):
+                                          model="qwen3-vl-plus-2025-09-23", max_tokens=4000, temperature=0.1):
         """Call DASHSCOPE API with multiple images"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -760,7 +760,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
             
             if self.use_openai_client:
                 completion = self.client.chat.completions.create(
-                    model="qwen3-vl-plus",
+                    model="qwen3-vl-plus-2025-09-23",
                     messages=[{"role": "user", "content": message_content}],
                     max_tokens=2000,
                     temperature=0.1
@@ -769,7 +769,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
             else:
                 headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
                 data = {
-                    "model": "qwen3-vl-plus",
+                    "model": "qwen3-vl-plus-2025-09-23",
                     "messages": [{"role": "user", "content": message_content}],
                     "max_tokens": 2000,
                     "temperature": 0.1
@@ -1186,7 +1186,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                             })
                     
                     completion = self.client.chat.completions.create(
-                        model="qwen3-vl-plus",
+                        model="qwen3-vl-plus-2025-09-23",
                         messages=[{"role": "user", "content": content}],
                         max_tokens=4000,
                         temperature=0.1
@@ -1194,7 +1194,7 @@ MEASURES: [preventive measures or "N/A" if no accident]"""
                     response = completion.choices[0].message.content
                 else:
                     response = self.call_api_with_requests_multi_image(
-                        frames_for_api, model="qwen3-vl-plus", max_tokens=4000, temperature=0.1
+                        frames_for_api, model="qwen3-vl-plus-2025-09-23", max_tokens=4000, temperature=0.1
                     )
                 
                 # Parse response
@@ -1636,7 +1636,7 @@ def main():
     
     # Configuration
     BASE_DIR = "."
-    VIDEO_FRAMES_DIR = "video_frames"   # Video with door-opening accident
+    VIDEO_FRAMES_DIR = "./val_data/"   # Video with door-opening accident
     
     # Check for API key
     api_key = os.getenv("DASHSCOPE_API_KEY")
@@ -1694,7 +1694,7 @@ def main():
         print("="*70)
         
         # Check if already processed (optional - skip if output already exists)
-        output_dir = Path(f"accident_analysis_output_baseline_on_entire_video/{video_id}")
+        output_dir = Path(f"accident_analysis_output_baseline_on_entire_video_val_data/{video_id}")
         if output_dir.exists() and (output_dir / "complete_analysis.json").exists():
             print(f"⚠️ Video {video_id} already processed. Skipping...")
             skipped.append(video_id)
@@ -1703,7 +1703,7 @@ def main():
         try:
             results = analyzer.process_video_complete(
             video_folder=str(video_folder),
-            output_base_dir="accident_analysis_output_baseline_on_entire_video",
+            output_base_dir="accident_analysis_output_baseline_on_entire_video_val_data",
             generate_caption=True,
             track_objects=enable_tracking,
             visualize=enable_tracking,
