@@ -1,0 +1,385 @@
+{
+  "timestamp": "2025-10-22T22:58:33.667523",
+  "configuration": {
+    "gt_caption_dir": "./accident_analysis_output_val_ground_truth",
+    "pred_caption_dir": "./accident_analysis_output_baseline_on_entire_video_val_data",
+    "max_caption_length": 500,
+    "skip_spice": true
+  },
+  "video_processing": {
+    "details": [
+      {
+        "video_id": "002036",
+        "status": "success",
+        "gt_length": 201,
+        "pred_length": 185
+      },
+      {
+        "video_id": "002044",
+        "status": "success",
+        "gt_length": 216,
+        "pred_length": 248
+      },
+      {
+        "video_id": "002045",
+        "status": "success",
+        "gt_length": 170,
+        "pred_length": 158
+      },
+      {
+        "video_id": "002048",
+        "status": "success",
+        "gt_length": 240,
+        "pred_length": 238
+      },
+      {
+        "video_id": "002049",
+        "status": "success",
+        "gt_length": 197,
+        "pred_length": 319
+      },
+      {
+        "video_id": "002061",
+        "status": "success",
+        "gt_length": 260,
+        "pred_length": 178
+      },
+      {
+        "video_id": "002065",
+        "status": "success",
+        "gt_length": 246,
+        "pred_length": 344
+      },
+      {
+        "video_id": "002086",
+        "status": "success",
+        "gt_length": 229,
+        "pred_length": 317
+      },
+      {
+        "video_id": "002088",
+        "status": "success",
+        "gt_length": 254,
+        "pred_length": 217
+      },
+      {
+        "video_id": "002092",
+        "status": "success",
+        "gt_length": 224,
+        "pred_length": 208
+      },
+      {
+        "video_id": "002124",
+        "status": "success",
+        "gt_length": 228,
+        "pred_length": 260
+      },
+      {
+        "video_id": "002129",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002129/grounded_captions/002129_grounded_caption.txt"
+      },
+      {
+        "video_id": "002133",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002133/grounded_captions/002133_grounded_caption.txt"
+      },
+      {
+        "video_id": "002134",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002134/grounded_captions/002134_grounded_caption.txt"
+      },
+      {
+        "video_id": "002135",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002135/grounded_captions/002135_grounded_caption.txt"
+      },
+      {
+        "video_id": "002141",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002141/grounded_captions/002141_grounded_caption.txt"
+      },
+      {
+        "video_id": "002143",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002143/grounded_captions/002143_grounded_caption.txt"
+      },
+      {
+        "video_id": "002144",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002144/grounded_captions/002144_grounded_caption.txt"
+      },
+      {
+        "video_id": "002148",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002148/grounded_captions/002148_grounded_caption.txt"
+      },
+      {
+        "video_id": "002160",
+        "status": "pred_not_found",
+        "error": "Pred file not found: ./accident_analysis_output_baseline_on_entire_video_val_data/002160/grounded_captions/002160_grounded_caption.txt"
+      }
+    ],
+    "total_videos": 20,
+    "successful_pairs": 11
+  },
+  "metrics": {
+    "coco": {
+      "per_video_scores": {
+        "002036": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.4759254188534475,
+            "Bleu_2": 0.2755213299480543,
+            "Bleu_3": 0.14492041929244812,
+            "Bleu_4": 0.06258052301951243,
+            "METEOR": 0.2766091375735244,
+            "ROUGE_L": 0.2520023606778518,
+            "CIDEr": 0.0
+          },
+          "gt_length": 201,
+          "pred_length": 185
+        },
+        "002044": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.5846774193524812,
+            "Bleu_2": 0.418528988600819,
+            "Bleu_3": 0.31995674563736337,
+            "Bleu_4": 0.2577243286461147,
+            "METEOR": 0.33004326068438794,
+            "ROUGE_L": 0.41900400686891814,
+            "CIDEr": 0.0
+          },
+          "gt_length": 216,
+          "pred_length": 248
+        },
+        "002045": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.545558680809411,
+            "Bleu_2": 0.3931871647659399,
+            "Bleu_3": 0.27644315257091817,
+            "Bleu_4": 0.2050724709809371,
+            "METEOR": 0.2633489816986442,
+            "ROUGE_L": 0.4240317775571003,
+            "CIDEr": 0.0
+          },
+          "gt_length": 170,
+          "pred_length": 158
+        },
+        "002048": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.5874793722487152,
+            "Bleu_2": 0.41775970296639864,
+            "Bleu_3": 0.3254341598801938,
+            "Bleu_4": 0.274431624253918,
+            "METEOR": 0.2991695717241667,
+            "ROUGE_L": 0.4013708019191227,
+            "CIDEr": 0.0
+          },
+          "gt_length": 240,
+          "pred_length": 238
+        },
+        "002049": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.4200626959234481,
+            "Bleu_2": 0.3126506655577476,
+            "Bleu_3": 0.23850859995488205,
+            "Bleu_4": 0.18620689980437297,
+            "METEOR": 0.316529866883557,
+            "ROUGE_L": 0.31578947368421056,
+            "CIDEr": 0.0
+          },
+          "gt_length": 197,
+          "pred_length": 319
+        },
+        "002061": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.42884181313255465,
+            "Bleu_2": 0.30783900816516996,
+            "Bleu_3": 0.23249986478596396,
+            "Bleu_4": 0.1834532700158289,
+            "METEOR": 0.22100959009501628,
+            "ROUGE_L": 0.3356987690079653,
+            "CIDEr": 0.0
+          },
+          "gt_length": 260,
+          "pred_length": 178
+        },
+        "002065": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.438953488370817,
+            "Bleu_2": 0.30143339620008053,
+            "Bleu_3": 0.2040964896832839,
+            "Bleu_4": 0.13668475088508514,
+            "METEOR": 0.2915352746596775,
+            "ROUGE_L": 0.3319775435380385,
+            "CIDEr": 0.0
+          },
+          "gt_length": 246,
+          "pred_length": 344
+        },
+        "002086": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.4195583596201276,
+            "Bleu_2": 0.2627570152273673,
+            "Bleu_3": 0.16634348407503188,
+            "Bleu_4": 0.11268603668311182,
+            "METEOR": 0.2778990763472881,
+            "ROUGE_L": 0.2791762013729977,
+            "CIDEr": 0.0
+          },
+          "gt_length": 229,
+          "pred_length": 317
+        },
+        "002088": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.4468768893490599,
+            "Bleu_2": 0.28328324089491547,
+            "Bleu_3": 0.18151069993055202,
+            "Bleu_4": 0.11332746845827255,
+            "METEOR": 0.24581165951001485,
+            "ROUGE_L": 0.3014620083739447,
+            "CIDEr": 0.0
+          },
+          "gt_length": 254,
+          "pred_length": 217
+        },
+        "002092": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.4540770674067696,
+            "Bleu_2": 0.2741427972640191,
+            "Bleu_3": 0.1890469735141838,
+            "Bleu_4": 0.1353583918025428,
+            "METEOR": 0.2265294397659863,
+            "ROUGE_L": 0.2299457177322075,
+            "CIDEr": 0.0
+          },
+          "gt_length": 224,
+          "pred_length": 208
+        },
+        "002124": {
+          "status": "success",
+          "scores": {
+            "Bleu_1": 0.5576923076901628,
+            "Bleu_2": 0.41504237405214983,
+            "Bleu_3": 0.3323859212392367,
+            "Bleu_4": 0.2815865153782238,
+            "METEOR": 0.32466878683898515,
+            "ROUGE_L": 0.4230350829480555,
+            "CIDEr": 0.0
+          },
+          "gt_length": 228,
+          "pred_length": 260
+        },
+        "002129": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002133": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002134": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002135": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002141": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002143": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002144": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002148": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        },
+        "002160": {
+          "status": "skipped",
+          "reason": "empty_caption",
+          "scores": {}
+        }
+      },
+      "aggregate_scores": {
+        "Bleu_1": 0.5149700598800468,
+        "Bleu_2": 0.35385121658791285,
+        "Bleu_3": 0.2552580175104404,
+        "Bleu_4": 0.19448278307011024,
+        "METEOR": 0.2783868839650942,
+        "ROUGE_L": 0.33759034033458296,
+        "CIDEr": 0.2255786628311949
+      },
+      "average_individual_scores": {
+        "Bleu_1_avg": 0.4872457738869995,
+        "Bleu_2_avg": 0.3329223348766056,
+        "Bleu_3_avg": 0.23737695550582344,
+        "Bleu_4_avg": 0.17719202544799273,
+        "METEOR_avg": 0.2793776950710226,
+        "ROUGE_L_avg": 0.33759034033458296,
+        "CIDEr_avg": 0.0
+      },
+      "spice_skipped": true,
+      "valid_videos": [
+        "002036",
+        "002044",
+        "002045",
+        "002048",
+        "002049",
+        "002061",
+        "002065",
+        "002086",
+        "002088",
+        "002092",
+        "002124"
+      ]
+    }
+  },
+  "video_ids": [
+    "002036",
+    "002044",
+    "002045",
+    "002048",
+    "002049",
+    "002061",
+    "002065",
+    "002086",
+    "002088",
+    "002092",
+    "002124",
+    "002129",
+    "002133",
+    "002134",
+    "002135",
+    "002141",
+    "002143",
+    "002144",
+    "002148",
+    "002160"
+  ]
+}
